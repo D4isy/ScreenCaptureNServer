@@ -1,70 +1,126 @@
 #include "socket_lib-master\socket_lib.h"
 
-#define BUF_SIZE 100
+#include <time.h>
+#include <tchar.h>
 
-int main(void) {
+#define BUF_SIZE 10 //((1025)*(512))
+
+void __close(SOCKET sockfd, fd_set *readfds)
+{
+	closesocket(sockfd);
+	FD_CLR(sockfd, readfds);
+}
+
+int main(int argc, char **argv)
+{
+	FILE* fp;
+	char fName[MAX_PATH];
+	char buf[BUF_SIZE];
+
+	int readn;
+	int i = 0;
+
+	fd_set readfds, allfds;
 
 	const char ip[] = "127.0.0.1";
 	const int port = 2222;
 
-	socket_t hServSock, hClntSock;
-	SOCKADDR_IN clntAddr;
+	int fd_num, maxfd = 0;
+	SOCKET hServSock, hClntSock;
+	SOCKADDR_IN server_addr, client_addr;
+	int addrlen;
 
-	TIMEVAL timeout;
-	fd_set reads, cpyReads;
-
-	int adrSz;
-	int hListener;
-
-	// for test 
-	char buf[BUF_SIZE];
-	FILE *fp;
-
+	FD_ZERO(&readfds);
 	hServSock = creat_server_socket(ip, port);
-	
-	FD_ZERO(&reads);
-	FD_SET(hServSock, &reads);
 
-	while (1) {
-		cpyReads = reads;
-		timeout.tv_sec = 5;
-		timeout.tv_usec = 5000;
+	FD_SET(hServSock, &readfds);
 
-		if ((hListener = select(0, &cpyReads, 0, 0, &timeout)) == SOCKET_ERROR) {
-			printf("select() Error!\n");
+	maxfd = hServSock;
+	while (1)
+	{
+		allfds = readfds;
+		// printf("Select Wait %d\n", maxfd);
+
+		fd_num = select(maxfd + 1, &allfds, (fd_set *)0,
+			(fd_set *)0, NULL);
+
+		if (fd_num == SOCKET_ERROR) {
+			printf("select error!\n");
 			break;
 		}
-		else {
-			for (unsigned int i = 0; i < reads.fd_count ; i++) {
-				if (FD_ISSET(reads.fd_array[i], &cpyReads)) {
-					if (reads.fd_array[i] == hServSock) {		// 연결 요청을 받은 경우 
-						adrSz = sizeof(clntAddr);
-						hClntSock = accept(hServSock, (SOCKADDR*)&clntAddr, &adrSz);
-						FD_SET(hClntSock, &reads);
-						printf("connected client: %d \n", hClntSock);
-					}
-					else {			// client로 부터 데이터가 전송된 경우 
-						int readCnt;
-						fp = fopen("recvFile.txt", "w+");
 
-						while (1) {
-							readCnt = recv(reads.fd_array[i], buf, BUF_SIZE - 1, 0); 
-							if (readCnt < BUF_SIZE - 1) { 
-								if (feof(fp) != 0) { 
-									fwrite(buf, sizeof(char), readCnt, fp);
-								} 
-								else { 
-									puts("file send() error!\n");
-								}
-								break;
-							}
-							fwrite(buf, sizeof(char), BUF_SIZE - 1, fp);
-							fclose(fp);
-						} 
-					}
+		if (FD_ISSET(hServSock, &allfds))
+		{
+			addrlen = sizeof(client_addr);
+			hClntSock = accept(hServSock,
+				(struct sockaddr *)&client_addr, &addrlen);
+
+			FD_SET(hClntSock, &readfds);
+
+			if (hClntSock > maxfd)
+				maxfd = hClntSock;
+			// printf("connected client: %d \n", hClntSock);
+			continue;
+		}
+
+		for (i = 0; i <= allfds.fd_count; i++) // maxfd; i++)
+		{
+			if (allfds.fd_array[i] == hServSock) continue;
+
+			hClntSock = allfds.fd_array[i];
+			if (FD_ISSET(hClntSock, &allfds))
+			{
+				fileNameMaker(fName);
+
+				printf("[fd: %u] Create File: %s\n", hClntSock, fName);
+
+				if ((fp = fopen(fName, "wb")) == NULL) {
+					puts("fopen() error!");
+					__close(hClntSock, &readfds);
+					break;
 				}
+
+				while (1) {
+					readn = recv(hClntSock, buf, BUF_SIZE - 1, 0);
+					if (readn == 0)
+					{
+						// printf("[fd:%u] file receive end!\n", hClntSock);
+						fclose(fp);
+						__close(hClntSock, &readfds);
+						break;
+					}
+					else if (readn == SOCKET_ERROR)
+					{
+						printf("[fd:%u] file receive error!\n", hClntSock);
+						fclose(fp);
+						__close(hClntSock, &readfds);
+						break;
+					}
+					fwrite(buf, sizeof(char), BUF_SIZE - 1, fp);
+					// printf("[fd:%u] recv %u bytes\n", hClntSock, readn);
+				}
+
+				if (--fd_num <= 0)
+					break;
 			}
 		}
 	}
 
+	close_client_socket(hServSock);
+	return 0;
+}
+
+void fileNameMaker(char *fName) {
+	time_t timer;
+	struct tm *curTime;
+
+	char strFolderPath[] = "C:\\server";
+
+	timer = time(NULL);
+	curTime = localtime(&timer);
+
+	sprintf(fName, "%s\\%04d%02d%02d_%02d%02d%02d.png", strFolderPath,
+		curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
+		curTime->tm_hour, curTime->tm_min, curTime->tm_sec
+	);
 }
