@@ -37,12 +37,14 @@ POINT		ptCurrent;
 HPEN		hPen;
 HBITMAP		hBitmap;
 HBITMAP		hBmpTemp;
-HBITMAP		hBmpFinish; 
+HBITMAP		hBmpFinish;
 HBITMAP		hBmpPaint;
 HWND		hWndEdit;
 HANDLE		hEvent;
 wchar_t		szText[1024];
 wchar_t		wszFilePath[MAX_PATH];
+
+HWND g_hwndFoundWindow;
 
 IStream*	pStream;
 GdiplusStartupInput gdiplusStartupInput;
@@ -60,7 +62,7 @@ INT_PTR CALLBACK	CaptureProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK	CommandBarProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
 HBITMAP				CreateCompatibleBitmap(RECT* rcClient);
-BOOL				SaveHDCToFile(HDC hDC, LPRECT lpRect);
+BOOL				SaveHDCToFile(HWND hDlg, HDC hDC, LPRECT lpRect);
 VOID				ImageFromResource(UINT uID, LPCTSTR pszResType, Image** ppImage);
 VOID				InitDialog(HWND hDlg);
 VOID				AbortCapture(HWND hDlg);
