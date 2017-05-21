@@ -8,6 +8,7 @@
 
 BOOL isCustomPictureKey = FALSE;
 BOOL isSelectPictureKey = FALSE;
+BOOL isWindowPictureKey = FALSE;
 BOOL isFirstInit = FALSE;
 
 VOID				CommandFinished(HWND hDlg)
@@ -34,6 +35,7 @@ VOID HotKeyDefaultSet(BOOL isType)
 {
 	isCustomPictureKey = isType;
 	isSelectPictureKey = isType;
+	isWindowPictureKey = isType;
 	isFirstInit = isType;
 }
 
@@ -66,6 +68,11 @@ VOID InitScreenMemory(VOID)
 
 	SelectObject(hdcMem, hBitmap);
 	BitBlt(hdcMem, 0, 0, nWidth, nHeight, hdcDisplay, 0, 0, SRCCOPY);
+
+	if (isWindowPictureKey) {
+		HDC hdcFound = GetDC(g_hwndFoundWindow);
+		BitBlt(hdcMem, ptBegin.x, ptBegin.y, ptEnd.x - ptBegin.x, ptEnd.y - ptBegin.y, hdcFound, 0, 0, SRCCOPY);
+	}
 
 	DeleteDC(hdcDisplay);
 
@@ -207,12 +214,151 @@ long HighlightFoundWindow(HWND hwndDialog, HWND hwndFoundWindow, HWND hwndDrawWi
 	return lRet;
 }
 
+long RefreshWindow(HWND hwndWindowToBeRefreshed)
+{
+	long lRet = 0;
+
+	InvalidateRect(hwndWindowToBeRefreshed, NULL, TRUE);
+	UpdateWindow(hwndWindowToBeRefreshed);
+	RedrawWindow(hwndWindowToBeRefreshed, NULL, NULL, RDW_FRAME | RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
+
+	return lRet;
+}
+
+HWND MyWindowFromPoint(POINT p, HWND exceptHwnd)
+{
+	HWND hWnd = NULL;
+	RECT rcArea;
+
+	// Top 윈도우부터 Point 영역에 충돌하는 윈도우를 구해냄.
+	HRGN hRgn = CreateRectRgn(0, 0, 1, 1);
+	for (hWnd = GetTopWindow(NULL); hWnd != NULL; hWnd = GetNextWindow(hWnd, GW_HWNDNEXT))
+	{
+		if (hWnd != exceptHwnd && hWnd != hWndEdit) {
+
+			if (IsWindowVisible(hWnd))
+			{
+				GetWindowRect(hWnd, &rcArea);
+				int ret = GetWindowRgn(hWnd, hRgn);
+
+				// 만약, 리전을 알수 없는 윈도우라면 Rect 로 판별함.
+				if (ret == ERROR)
+				{
+					if (PtInRect(&rcArea, p))
+					{
+						break;
+					}
+				}
+
+				// 그게 아니라면 리전으로 판단.
+				OffsetRgn(hRgn, rcArea.left, rcArea.top);
+				if (PtInRegion(hRgn, p.x, p.y))
+				{
+					break;
+				}
+			}
+		}
+	}
+	DeleteObject(hRgn);
+	NULLREGION;
+
+	// printf("\n\n");
+	return hWnd;
+}
+
+HWND GetParentWindowFromPoint(POINT p, HWND hDlg)
+{
+	HWND hWnd = WindowFromPoint(p);	// 해당 좌표의 윈도우 HWND 를 구함
+									// HWND hWnd = MyWindowFromPoint(p, hDlg);
+	HWND hParent = NULL;
+
+	while (1)
+	{
+		hParent = GetParent(hWnd);
+		if (hParent == NULL) break;
+		hWnd = hParent;
+	}
+
+	return hWnd;
+}
+
+void FindWindowChild(HWND hParamWnd)
+{
+	HWND hFindWnd = FindWindowEx(hParamWnd, NULL, NULL, NULL);
+	while (hFindWnd != NULL)
+	{
+		//?some?work...
+
+		if (IsWindow(hFindWnd) && IsWindowVisible(hFindWnd))
+		{
+			if (GetDesktopWindow() != hFindWnd) {
+				RefreshWindow(hFindWnd);
+				FindWindowChild(hFindWnd);
+			}
+		}
+		hFindWnd = FindWindowEx(hParamWnd, hFindWnd, NULL, NULL);
+	}
+}
+
+VOID SelectWindow(HWND hWnd)
+{
+	POINT screenpoint;
+	HWND hwndFoundWindow;
+
+	GetCursorPos(&screenpoint);
+	hwndFoundWindow = GetParentWindowFromPoint(screenpoint, hWnd);
+
+	if (CheckWindowValidity(hWnd, hwndFoundWindow))
+	{
+		RECT rect;
+
+		GetWindowRect(hwndFoundWindow, &rect);
+		ptEnd.x = rect.right;
+		ptEnd.y = rect.bottom;
+		ptBegin.x = rect.left;
+		ptBegin.y = rect.top;
+
+		if (hwndFoundWindow != g_hwndFoundWindow) {
+			FindWindowChild(GetDesktopWindow());
+		}
+
+		g_hwndFoundWindow = hwndFoundWindow;
+
+		HighlightFoundWindow(hWnd, hwndFoundWindow, GetDesktopWindow());
+
+		//if (g_hwndFoundWindow) {
+		//RefreshWindow(hWnd);
+		//}
+		// RECT rect;
+
+		// GetWindowRect(hwndFoundWindow, &rect);
+
+		/*ptEnd.x = rect.right;
+		ptEnd.y = rect.bottom;
+		ptBegin.x = rect.left;
+		ptBegin.y = rect.top;*/
+
+		//bSelected = true;
+		// InvalidateRect(hWnd, NULL, FALSE);
+
+		//HDC hdc = GetDC(hWnd);
+		//BitBlt(hdcFinish, 0, 0, nWidth, nHeight, hdcTemp, 0, 0, SRCCOPY);
+		//BitBlt(hdcFinish, ptBegin.x, ptBegin.y, ptEnd.x - ptBegin.x, ptEnd.y - ptBegin.y, hdcPaint, ptBegin.x, ptBegin.y, SRCCOPY);
+		//g_hwndFoundWindow = hwndFoundWindow;
+		// HighlightFoundWindow(hWnd, g_hwndFoundWindow);
+		//ReleaseDC(hWnd, hdc);
+	}
+}
+
 BOOL GetHotKeyUse(VOID)
 {
 	if (isCustomPictureKey) {
 		return TRUE;
 	}
 	else if (isSelectPictureKey) {
+		return TRUE;
+	}
+	else if (isWindowPictureKey) {
 		return TRUE;
 	}
 
@@ -288,7 +434,7 @@ INT_PTR CALLBACK CaptureProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 		if (isFirstInit) {
 			switch (wParam) {
 			case VK_ESCAPE:
-				EndDialog(hDlg, 0);
+				// EndDialog(hDlg, 0);
 				break;
 			}
 		}
@@ -320,6 +466,8 @@ INT_PTR CALLBACK CaptureProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 		if (isFirstInit) {
 			if (isCustomPictureKey) {
 				OnLButtonDown(hDlg, wParam, lParam);
+			}
+			else if (isWindowPictureKey) {
 			}
 		}
 	}
@@ -405,6 +553,25 @@ INT_PTR CALLBACK CaptureProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 	break;
 	case WM_TIMER:
 	{
+		if (isFirstInit) {
+			if (isWindowPictureKey) {
+				if (GetAsyncKeyState(VK_SPACE) & 0x8000) { // 스펭이스바 키 눌림
+					if (g_hwndFoundWindow != NULL) {
+						RefreshWindow(g_hwndFoundWindow);
+					}
+					InitScreenMemory();
+					InitDialog(hDlg);
+					InvalidateRect(hDlg, NULL, FALSE);
+					OnDoubleClick(hDlg, NULL, NULL);
+					AbortCapture(hDlg);
+				}
+				else {
+					SelectWindow(hDlg);
+				}
+			}
+		}
+		//printf("[%d] %d/ %d/ %d\n", isFirstInit, isWindowPictureKey, isCustomPictureKey, isSelectPictureKey);
+		// printf("%d:%d:%d:%d:%d\n", bDown, bSelected, bDrawRect, bDrawText, bDrawLine);
 		if (GetHotKeyUse() && IsWindowVisible(hDlg) && !IsIconic(hDlg)) {
 			if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
 				AbortCapture(hDlg);
@@ -472,11 +639,36 @@ INT_PTR CALLBACK CaptureProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 					OnDoubleClick(hDlg, NULL, NULL);
 				}
 			}
+			else if ((GetAsyncKeyState(VK_MENU) & 0x8000) && (GetAsyncKeyState(0x34) & 0x8000)) { // 4번 키 눌림
+				if (!isWindowPictureKey) {
+					if (!isFirstInit) {
+						isFirstInit = TRUE;
+					}
+					ShowWindow(hDlg, SW_SHOW);
+
+					isWindowPictureKey = TRUE;
+					//Graphics *pGraphic = new Graphics(hdcTemp);
+
+					//if (pImage != NULL)
+					//{
+					//	// 회색화면이 뜨게만드는 요인!
+					//	pGraphic->DrawImage(pImage, 0, 0, nWidth, nHeight);
+					//}
+
+					//delete pGraphic;
+					//InitDialog(hDlg);
+					//InvalidateRect(hDlg, NULL, FALSE);
+				}
+			}
 		}
 	}
 	break;
 	case WM_DESTROY:
 	{
+		if (g_hwndFoundWindow != NULL) {
+			RefreshWindow(g_hwndFoundWindow);
+		}
+
 		if (hWndCommandBar != NULL)
 		{
 			DestroyWindow(hWndCommandBar);
