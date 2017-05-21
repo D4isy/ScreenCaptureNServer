@@ -111,16 +111,33 @@ int main(int argc, char **argv)
 }
 
 void fileNameMaker(char *fName) {
-	time_t timer;
-	struct tm *curTime;
+   time_t timer;
+   struct tm *curTime;
 
-	char strFolderPath[] = "C:\\server";
+   char strFolderPath[] = "C:\\server";
+   int nResult, idx=0;
 
-	timer = time(NULL);
-	curTime = localtime(&timer);
+   timer = time(NULL);
+   curTime = localtime(&timer);
+	
+   nResult = mkdir(strFolderPath);
+	
+   sprintf(fName, "%s\\%04d%02d%02d_%02d%02d%02d.png", strFolderPath,
+      curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
+      curTime->tm_hour, curTime->tm_min, curTime->tm_sec
+   );
 
-	sprintf(fName, "%s\\%04d%02d%02d_%02d%02d%02d.png", strFolderPath,
-		curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
-		curTime->tm_hour, curTime->tm_min, curTime->tm_sec
-	);
+   while (1) {
+      //if (PathFileExists(fName) == TRUE) {
+      //   break;
+      //}
+      if (access(fName, 0) == -1) {
+         break;
+      }
+
+      sprintf(fName, "%s\\%04d%02d%02d_%02d%02d%02d(%d).png", strFolderPath,
+         curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
+         curTime->tm_hour, curTime->tm_min, curTime->tm_sec, idx++
+         );
+   }
 }
