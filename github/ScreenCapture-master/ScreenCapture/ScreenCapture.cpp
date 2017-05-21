@@ -7,6 +7,7 @@
 #define TIMER_KEYDOWN 1
 
 BOOL isCustomPictureKey = FALSE;
+BOOL isSelectPictureKey = FALSE;
 BOOL isFirstInit = FALSE;
 
 VOID				CommandFinished(HWND hDlg)
@@ -32,6 +33,7 @@ VOID				CommandDrawText(HWND hDlg)
 VOID HotKeyDefaultSet(BOOL isType)
 {
 	isCustomPictureKey = isType;
+	isSelectPictureKey = isType;
 	isFirstInit = isType;
 }
 
@@ -208,6 +210,9 @@ long HighlightFoundWindow(HWND hwndDialog, HWND hwndFoundWindow, HWND hwndDrawWi
 BOOL GetHotKeyUse(VOID)
 {
 	if (isCustomPictureKey) {
+		return TRUE;
+	}
+	else if (isSelectPictureKey) {
 		return TRUE;
 	}
 
@@ -425,6 +430,46 @@ INT_PTR CALLBACK CaptureProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 					delete pGraphic;
 					InitDialog(hDlg);
 					InvalidateRect(hDlg, NULL, FALSE);
+				}
+			}
+			else if ((GetAsyncKeyState(VK_MENU) & 0x8000) && (GetAsyncKeyState(0x33) & 0x8000)) { // 3번 키 눌림
+				if (!isSelectPictureKey) {
+					if (!isFirstInit) {
+						isFirstInit = TRUE;
+						InitScreenMemory();
+					}
+					ShowWindow(hDlg, SW_SHOW);
+					// isSelectPictureKey = TRUE;
+					InitDialog(hDlg);
+
+					//bSelected = false;
+					ptBegin.x = 0;
+					ptBegin.y = 0;
+					ptEnd.x = nWidth;
+					ptEnd.y = nHeight;
+					//bDown = true;
+
+					// CommandFinished(hDlg);
+
+					/*
+					bSelected = true;
+					bDrawRect = false;
+					bDrawText = false;
+					hWndCommandBar = CreateDialog(hInst, MAKEINTRESOURCE(IDD_COMMANDBAR), hDlg, CommandBarProc);
+					if (hWndCommandBar != NULL)
+					{
+					SetWindowPos(hWndCommandBar,
+					HWND_TOPMOST,
+					nWidth - 134,
+					nHeight - 26,
+					134, 26,
+					SWP_SHOWWINDOW);
+					UpdateWindow(hWndCommandBar);
+					}
+					*/
+
+					InvalidateRect(hDlg, NULL, FALSE);
+					OnDoubleClick(hDlg, NULL, NULL);
 				}
 			}
 		}

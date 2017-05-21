@@ -1,0 +1,15 @@
+# Visual Studio 2010 Folers:
+Debug
+Release
+
+# Visual Studio 2010 Files:
+*.vcxproj
+*.filters
+*.user
+
+# Qt Files:
+*.pro
+*.user
+
+# Program Output Files:
+*.bin
