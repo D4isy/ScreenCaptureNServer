@@ -733,10 +733,11 @@ VOID InitDialog(HWND hDlg)
 
 VOID AbortCapture(HWND hDlg)
 {
-	if (hWndCommandBar != NULL)
+	if (bDown == true || hWndCommandBar != NULL)
 	{
 		bSelected = false;
-		DestroyWindow(hWndCommandBar);
+		if (hWndCommandBar != NULL)
+			DestroyWindow(hWndCommandBar);
 		hWndCommandBar = NULL;
 		ptBegin.x = 0;
 		ptBegin.y = 0;
@@ -761,6 +762,7 @@ VOID AbortCapture(HWND hDlg)
 	else
 	{
 		wcscpy(wszFilePath, L"unknown");
+		HotKeyDefaultSet(FALSE);
 		EndDialog(hDlg, 0);
 	}
 }
