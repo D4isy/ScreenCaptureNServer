@@ -17,7 +17,7 @@ typedef struct _DeleteQueue {
 
 HANDLE hMutex;
 HANDLE hThread;
-int run_queue_flag=1, run_queue_count=0;
+int run_queue_flag = 1, run_queue_count = 0;
 DeleteQueue *queue_head;
 
 void fileNameMaker(char *fName);
@@ -81,10 +81,10 @@ int main(int argc, char **argv)
 	DWORD dwThreadID;
 
 	hMutex = CreateMutex(
-				NULL,	// ë””í´íŠ¸ ë³´ì•ˆ ê´€ë¦¬ìž
-				FALSE,	// ëˆ„êµ¬ë‚˜ ì†Œìœ í•  ìˆ˜ ìžˆëŠ” ìƒíƒœë¡œ ìƒì„±
-				NULL	// numaned mutex
-			);
+		NULL,	// µðÆúÆ® º¸¾È °ü¸®ÀÚ
+		FALSE,	// ´©±¸³ª ¼ÒÀ¯ÇÒ ¼ö ÀÖ´Â »óÅÂ·Î »ý¼º
+		NULL	// numaned mutex
+	);
 
 	if (hMutex == NULL) {
 		_tprintf(TEXT("CreateMutex error: %d\n"), GetLastError());
@@ -94,7 +94,7 @@ int main(int argc, char **argv)
 	queue_head->path[0] = 0x00;
 	queue_head->next = 0;
 	hThread = (HANDLE)_beginthreadex(NULL, 0, ThreadQueue, NULL, 0, &dwThreadID);
-	
+
 	FD_ZERO(&readfds);
 	hServSock = creat_server_socket(ip, port);
 
@@ -198,7 +198,7 @@ void fileNameMaker(char *fName) {
 	struct tm *curTime;
 
 	char strFolderPath[] = "C:\\server";
-	int nResult, idx=0;
+	int nResult, idx = 0;
 
 	timer = time(NULL);
 	curTime = localtime(&timer);
@@ -221,6 +221,6 @@ void fileNameMaker(char *fName) {
 		sprintf(fName, "%s\\%04d%02d%02d_%02d%02d%02d(%d).png", strFolderPath,
 			curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
 			curTime->tm_hour, curTime->tm_min, curTime->tm_sec, idx++
-			);
+		);
 	}
 }
