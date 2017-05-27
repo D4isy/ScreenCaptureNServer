@@ -20,7 +20,7 @@ HANDLE hThread;
 int run_queue_flag = 1, run_queue_count = 0;
 DeleteQueue *queue_head;
 
-void fileNameMaker(char *fName);
+void fileNameMaker(char *fName, char *url);
 void __close(SOCKET sockfd, fd_set *readfds);
 UINT WINAPI ThreadQueue(void *arg);
 
@@ -63,6 +63,7 @@ int main(int argc, char **argv)
 {
 	FILE* fp;
 	char fName[MAX_PATH];
+	char url[MAX_PATH];
 	char buf[BUF_SIZE];
 
 	int readn;
@@ -70,8 +71,8 @@ int main(int argc, char **argv)
 
 	fd_set readfds, allfds;
 
-	const char ip[] = "127.0.0.1";
-	const int port = 2222;
+	const char ip[] = "220.149.14.83";
+	const int port = 443;
 
 	int fd_num, maxfd = 0;
 	SOCKET hServSock, hClntSock;
@@ -135,7 +136,8 @@ int main(int argc, char **argv)
 			hClntSock = allfds.fd_array[i];
 			if (FD_ISSET(hClntSock, &allfds))
 			{
-				fileNameMaker(fName);
+				int fileSize = 0, totalSize = 0;
+				fileNameMaker(fName, url);
 
 				printf("[fd: %u] Create File: %s\n", hClntSock, fName);
 
@@ -145,14 +147,24 @@ int main(int argc, char **argv)
 					break;
 				}
 
+				readn = recv(hClntSock, (char *)&fileSize, sizeof(int), 0);
+				printf("filesize: %u\n", fileSize);
 				while (1) {
 					readn = recv(hClntSock, buf, BUF_SIZE - 1, 0);
-					if (readn == 0)
+					totalSize += readn;
+					// printf("[fd:%u] recv %u/%u bytes\n", hClntSock, totalSize, fileSize);
+					if (readn == 0) // 상대 소켓 종료
 					{
 						// printf("[fd:%u] file receive end!\n", hClntSock);
 						fclose(fp);
 						__close(hClntSock, &readfds);
 						break;
+					}
+					else if (totalSize >= fileSize) {
+						int len = strlen(url);
+						send(hClntSock, (char*)&len, sizeof(int), 0);
+						printf("url 전송...: %s(%d)\n", url, len);
+						send(hClntSock, url, len, 0);
 					}
 					else if (readn == SOCKET_ERROR)
 					{
@@ -193,7 +205,7 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-void fileNameMaker(char *fName) {
+void fileNameMaker(char *fName, char *url) {
 	time_t timer;
 	struct tm *curTime;
 
@@ -205,6 +217,11 @@ void fileNameMaker(char *fName) {
 
 	nResult = mkdir(strFolderPath);
 
+	memset(url, 0, sizeof(MAX_PATH));
+	sprintf(url, "http://220.149.14.83:443/%04d%02d%02d_%02d%02d%02d.png",
+		curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
+		curTime->tm_hour, curTime->tm_min, curTime->tm_sec
+	);
 	sprintf(fName, "%s\\%04d%02d%02d_%02d%02d%02d.png", strFolderPath,
 		curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
 		curTime->tm_hour, curTime->tm_min, curTime->tm_sec
@@ -218,7 +235,12 @@ void fileNameMaker(char *fName) {
 			break;
 		}
 
+		memset(url, 0, sizeof(MAX_PATH));
 		sprintf(fName, "%s\\%04d%02d%02d_%02d%02d%02d(%d).png", strFolderPath,
+			curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
+			curTime->tm_hour, curTime->tm_min, curTime->tm_sec, idx
+		);
+		sprintf(url, "http://220.149.14.83:443/%04d%02d%02d_%02d%02d%02d(%d).png",
 			curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
 			curTime->tm_hour, curTime->tm_min, curTime->tm_sec, idx++
 		);

@@ -6,6 +6,7 @@
 
 #define TIMER_KEYDOWN 1
 
+HWND *_hwndDlg = NULL;
 BOOL isCustomPictureKey = FALSE;
 BOOL isSelectPictureKey = FALSE;
 BOOL isWindowPictureKey = FALSE;
@@ -265,6 +266,7 @@ INT_PTR CALLBACK CaptureProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 
 	case WM_INITDIALOG:
 	{
+		*_hwndDlg = hDlg;
 		// DialogBox 숨기기
 		SetWindowPos(hDlg, HWND_TOPMOST, 0, 0, 0, 0, SWP_HIDEWINDOW);
 		SetTimer(hDlg, TIMER_KEYDOWN, 1, NULL);
@@ -412,6 +414,9 @@ INT_PTR CALLBACK CaptureProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 	break;
 	case WM_TIMER:
 	{
+		if ((GetAsyncKeyState(VK_MENU) & 0x8000) && (GetAsyncKeyState(VK_CONTROL) & 0x8000) && GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
+			AbortCapture(hDlg);
+		}
 		if (GetHotKeyUse() && IsWindowVisible(hDlg) && !IsIconic(hDlg)) {
 			if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
 				AbortCapture(hDlg);
@@ -554,6 +559,17 @@ BOOL SaveHDCToFile(HWND hDlg, HDC hDC, LPRECT lpRect)
 	srand(GetTickCount());
 
 	wchar_t wszPathTemp[MAX_PATH] = { 0 };
+	char path[MAX_PATH] = { 0, };
+	int rnd = rand();
+	sprintf(path, "%d%02d%02d%02d%02d%02d%d%d.png",
+		st.wYear,
+		st.wMonth,
+		st.wDay,
+		st.wHour,
+		st.wMinute,
+		st.wSecond,
+		st.wMilliseconds,
+		rnd);
 	wsprintf(wszPathTemp, L"%s/%d%02d%02d%02d%02d%02d%d%d.png",
 		wszFilePath,
 		st.wYear,
@@ -563,7 +579,7 @@ BOOL SaveHDCToFile(HWND hDlg, HDC hDC, LPRECT lpRect)
 		st.wMinute,
 		st.wSecond,
 		st.wMilliseconds,
-		rand());
+		rnd);
 	OutputDebugStringW(wszPathTemp);
 
 	if (pbmSrc->Save(wszPathTemp, &pngClsid) == Ok)
@@ -571,19 +587,21 @@ BOOL SaveHDCToFile(HWND hDlg, HDC hDC, LPRECT lpRect)
 		bRet = TRUE;
 	}
 
-	if (OpenClipboard(hDlg)) {
-		HBITMAP hBitmap_copy = CreateBitmap(nWidth, nHeight, 1, 32, NULL);
-		HDC newDC = CreateCompatibleDC(hDC);
-		HBITMAP newBitmap = (HBITMAP)SelectObject(newDC, hBitmap_copy);
+	if (bClip) {
+		if (OpenClipboard(hDlg)) {
+			HBITMAP hBitmap_copy = CreateBitmap(nWidth, nHeight, 1, 32, NULL);
+			HDC newDC = CreateCompatibleDC(hDC);
+			HBITMAP newBitmap = (HBITMAP)SelectObject(newDC, hBitmap_copy);
 
-		BitBlt(newDC, 0, 0, nWidth, nHeight, memDC, 0, 0, SRCCOPY);
+			BitBlt(newDC, 0, 0, nWidth, nHeight, memDC, 0, 0, SRCCOPY);
 
-		SelectObject(newDC, newBitmap);
-		DeleteDC(newDC);
+			SelectObject(newDC, newBitmap);
+			DeleteDC(newDC);
 
-		EmptyClipboard();
-		SetClipboardData(CF_BITMAP, hBitmap_copy);
-		CloseClipboard();
+			EmptyClipboard();
+			SetClipboardData(CF_BITMAP, hBitmap_copy);
+			CloseClipboard();
+		}
 	}
 
 	delete pbmSrc;
@@ -592,23 +610,88 @@ BOOL SaveHDCToFile(HWND hDlg, HDC hDC, LPRECT lpRect)
 	DeleteDC(memDC);
 	DeleteObject(hBmp);
 
+	if (bUrl) {
+		socket_t servSock;
+
+		FILE* fp;
+		int  urlLen = 0;
+		char fBuffer[BUF_SIZE];
+		// 파일 크기 구하기
+		int fileSize, readSize, readTotalSize;
+
+		const char IP[] = "220.149.14.83";
+		int port = 443;
+
+		servSock = creat_client_socket(IP, port);
+		if (servSock == SOCKET_ERROR) { return bRet; }
+
+		fp = fopen(path, "rb");
+		if (fp == NULL) {
+			puts("fopen() error!");
+		}
+
+		// file의 크기 계산 
+		fseek(fp, 0, SEEK_END);
+		fileSize = ftell(fp);
+		fseek(fp, 0, SEEK_SET);
+		readTotalSize = 0;
+
+		send(servSock, (char*)&fileSize, sizeof(int), 0);
+		
+		while (fileSize > readTotalSize) {
+			memset(fBuffer, 0x00, BUF_SIZE);
+			readSize = fread(fBuffer, sizeof(char), BUF_SIZE, fp);
+			if (send(servSock, fBuffer, readSize, 0) == SOCKET_ERROR) {
+				break;
+			}
+			readTotalSize = readTotalSize + readSize;
+		}
+
+		fclose(fp);
+
+		memset(fBuffer, 0x00, BUF_SIZE);
+		recv(servSock, (char*)&urlLen, sizeof(int), 0);
+		recv(servSock, fBuffer, urlLen, 0);
+		closesocket(servSock);
+
+		{
+			HANDLE hData = GlobalAlloc(GMEM_DDESHARE | GMEM_MOVEABLE, urlLen + 1);
+			char *pData = (char*)GlobalLock(hData);
+			if (pData != NULL) {
+				memcpy(pData, fBuffer, urlLen + 1);
+				GlobalUnlock(hData);
+				if (OpenClipboard(hDlg)) {
+					EmptyClipboard();
+					SetClipboardData(CF_TEXT, hData);
+					CloseClipboard();
+				}
+			}
+		}
+	}
+
 	return bRet;
 }
 
 void ThreadProc(void *param)
 {
-	MessageBox(NULL, L"캡쳐 후 이 메시지가 뜹니다. ", L"공지", MB_OK | MB_TOPMOST);
+	// MessageBox(NULL, L"캡쳐 후 이 메시지가 뜹니다. ", L"공지", MB_OK | MB_TOPMOST);
 	Sleep(500);
 	SetEvent(hEvent);
 }
 
-extern "C" EXPORT_API void ScreenShot(wchar_t* wszPath)
+extern "C" EXPORT_API int ScreenShot(wchar_t* wszPath, int type, HWND *hwndDlg)
 {
 	if (wszPath == NULL)
 	{
-		return;
+		return -1;
 	}
 
+	if (type & 0x01) {
+		bUrl = true;
+	}
+	if (type & 0x02) {
+		bClip = true;
+	}
 	wcscpy(wszFilePath, wszPath);
 
 	bSelected = false;
@@ -696,6 +779,7 @@ extern "C" EXPORT_API void ScreenShot(wchar_t* wszPath)
 	// LineTo(hdcMem, nWidth, nHeight);
 
 	// 윈도우 함수 호출!
+	_hwndDlg = hwndDlg;
 	DialogBox(hInst, MAKEINTRESOURCE(IDD_SHOW), NULL, CaptureProc);
 
 	// 메모리 해제
@@ -718,6 +802,7 @@ extern "C" EXPORT_API void ScreenShot(wchar_t* wszPath)
 	delete pImage;
 
 	GdiplusShutdown(gdiplusGdiToken);
+	return 0;
 }
 
 HBITMAP	CreateCompatibleBitmap(RECT* rcClient)
