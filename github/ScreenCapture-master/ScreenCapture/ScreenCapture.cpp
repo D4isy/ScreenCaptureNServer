@@ -190,6 +190,7 @@ VOID SelectWindow(HWND hWnd)
 		ptBegin.y = ptBegin.y;// -top.y;
 		ptEnd.x = ptEnd.x - (left.x - rect2.right);
 		ptEnd.y = ptEnd.y - (left.y - rect2.bottom);
+		g_hwndFoundWindow = hwndFoundWindow;
 	}
 }
 
