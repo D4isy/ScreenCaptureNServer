@@ -71,8 +71,8 @@ int main(int argc, char **argv)
 
 	fd_set readfds, allfds;
 
-	const char ip[] = "220.149.14.83";
-	const int port = 443;
+	const char ip[] = "127.0.0.1";
+	const int port = 2222;
 
 	int fd_num, maxfd = 0;
 	SOCKET hServSock, hClntSock;
@@ -218,7 +218,7 @@ void fileNameMaker(char *fName, char *url) {
 	nResult = mkdir(strFolderPath);
 
 	memset(url, 0, sizeof(MAX_PATH));
-	sprintf(url, "http://220.149.14.83:443/%04d%02d%02d_%02d%02d%02d.png",
+	sprintf(url, "http://127.0.0.1:2222/%04d%02d%02d_%02d%02d%02d.png",
 		curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
 		curTime->tm_hour, curTime->tm_min, curTime->tm_sec
 	);
@@ -240,7 +240,7 @@ void fileNameMaker(char *fName, char *url) {
 			curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
 			curTime->tm_hour, curTime->tm_min, curTime->tm_sec, idx
 		);
-		sprintf(url, "http://220.149.14.83:443/%04d%02d%02d_%02d%02d%02d(%d).png",
+		sprintf(url, "http://127.0.0.1:2222/%04d%02d%02d_%02d%02d%02d(%d).png",
 			curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
 			curTime->tm_hour, curTime->tm_min, curTime->tm_sec, idx++
 		);
