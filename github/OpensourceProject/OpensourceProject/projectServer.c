@@ -8,7 +8,7 @@
 
 // #pragma comment(lib, "Shlwapi.lib")
 
-#define BUF_SIZE 10 //((1025)*(512))
+#define BUF_SIZE ((1025)*(512))
 
 typedef struct _DeleteQueue {
 	char path[MAX_PATH];
@@ -66,13 +66,13 @@ int main(int argc, char **argv)
 	char url[MAX_PATH];
 	char buf[BUF_SIZE];
 
-	int readn;
+	int readn, BigE;
 	int i = 0;
 
 	fd_set readfds, allfds;
 
-	const char ip[] = "220.149.14.83";
-	const int port = 443;
+	const char ip[] = "127.0.0.1";
+	const int port = 2222;
 
 	int fd_num, maxfd = 0;
 	SOCKET hServSock, hClntSock;
@@ -147,8 +147,8 @@ int main(int argc, char **argv)
 					break;
 				}
 
-				readn = recv(hClntSock, (char *)&fileSize, sizeof(int), 0);
-				printf("filesize: %u\n", fileSize);
+				readn = recv(hClntSock, (char *)&BigE, sizeof(int), 0);
+				fileSize = ntohl(BigE);
 				while (1) {
 					readn = recv(hClntSock, buf, BUF_SIZE - 1, 0);
 					totalSize += readn;
@@ -161,10 +161,12 @@ int main(int argc, char **argv)
 						break;
 					}
 					else if (totalSize >= fileSize) {
-						int len = strlen(url);
+						int len = htonl(strlen(url));
 						send(hClntSock, (char*)&len, sizeof(int), 0);
 						printf("url 전송...: %s(%d)\n", url, len);
-						send(hClntSock, url, len, 0);
+						send(hClntSock, url, MAX_PATH, 0);
+						// send(hClntSock, url, len, 0);
+						printf("url 전송완료!\n");
 					}
 					else if (readn == SOCKET_ERROR)
 					{
@@ -187,7 +189,7 @@ int main(int argc, char **argv)
 						}
 						break;
 					}
-					fwrite(buf, sizeof(char), BUF_SIZE - 1, fp);
+					fwrite(buf, sizeof(char), readn, fp);
 					// printf("[fd:%u] recv %u bytes\n", hClntSock, readn);
 				}
 
@@ -209,7 +211,7 @@ void fileNameMaker(char *fName, char *url) {
 	time_t timer;
 	struct tm *curTime;
 
-	char strFolderPath[] = "C:\\server";
+	char strFolderPath[] = "C:\\Tomcat 7.0\\webapps\\ROOT\\download";
 	int nResult, idx = 0;
 
 	timer = time(NULL);
@@ -218,7 +220,7 @@ void fileNameMaker(char *fName, char *url) {
 	nResult = mkdir(strFolderPath);
 
 	memset(url, 0, sizeof(MAX_PATH));
-	sprintf(url, "http://220.149.14.83:443/%04d%02d%02d_%02d%02d%02d.png",
+	sprintf(url, "http://220.149.14.83/download/%04d%02d%02d_%02d%02d%02d.png",
 		curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
 		curTime->tm_hour, curTime->tm_min, curTime->tm_sec
 	);
@@ -240,7 +242,7 @@ void fileNameMaker(char *fName, char *url) {
 			curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
 			curTime->tm_hour, curTime->tm_min, curTime->tm_sec, idx
 		);
-		sprintf(url, "http://220.149.14.83:443/%04d%02d%02d_%02d%02d%02d(%d).png",
+		sprintf(url, "http://220.149.14.83/download/%04d%02d%02d_%02d%02d%02d(%d).png",
 			curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
 			curTime->tm_hour, curTime->tm_min, curTime->tm_sec, idx++
 		);

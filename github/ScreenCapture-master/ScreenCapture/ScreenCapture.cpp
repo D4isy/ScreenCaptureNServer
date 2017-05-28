@@ -616,11 +616,13 @@ BOOL SaveHDCToFile(HWND hDlg, HDC hDC, LPRECT lpRect)
 		FILE* fp;
 		int  urlLen = 0;
 		char fBuffer[BUF_SIZE];
+		char urlLink[MAX_PATH];
 		// 파일 크기 구하기
 		int fileSize, readSize, readTotalSize;
+		int BigE;
 
-		const char IP[] = "220.149.14.83";
-		int port = 443;
+		const char IP[] = "127.0.0.1";
+		int port = 2222;
 
 		servSock = creat_client_socket(IP, port);
 		if (servSock == SOCKET_ERROR) { return bRet; }
@@ -636,7 +638,8 @@ BOOL SaveHDCToFile(HWND hDlg, HDC hDC, LPRECT lpRect)
 		fseek(fp, 0, SEEK_SET);
 		readTotalSize = 0;
 
-		send(servSock, (char*)&fileSize, sizeof(int), 0);
+		BigE = htonl(fileSize);
+		send(servSock, (char*)&BigE, sizeof(int), 0);
 		
 		while (fileSize > readTotalSize) {
 			memset(fBuffer, 0x00, BUF_SIZE);
@@ -649,16 +652,17 @@ BOOL SaveHDCToFile(HWND hDlg, HDC hDC, LPRECT lpRect)
 
 		fclose(fp);
 
-		memset(fBuffer, 0x00, BUF_SIZE);
+		memset(urlLink, 0x00, MAX_PATH);
 		recv(servSock, (char*)&urlLen, sizeof(int), 0);
-		recv(servSock, fBuffer, urlLen, 0);
+		urlLen = ntohl(urlLen);
+		recv(servSock, urlLink, MAX_PATH, 0);
 		closesocket(servSock);
 
 		{
 			HANDLE hData = GlobalAlloc(GMEM_DDESHARE | GMEM_MOVEABLE, urlLen + 1);
 			char *pData = (char*)GlobalLock(hData);
 			if (pData != NULL) {
-				memcpy(pData, fBuffer, urlLen + 1);
+				memcpy(pData, urlLink, urlLen + 1);
 				GlobalUnlock(hData);
 				if (OpenClipboard(hDlg)) {
 					EmptyClipboard();
@@ -686,6 +690,8 @@ extern "C" EXPORT_API int ScreenShot(wchar_t* wszPath, int type, HWND *hwndDlg)
 		return -1;
 	}
 
+	bUrl = false;
+	bClip = false;
 	if (type & 0x01) {
 		bUrl = true;
 	}
