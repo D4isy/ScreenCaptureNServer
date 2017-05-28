@@ -8,11 +8,12 @@
 
 // 전역 변수:
 HINSTANCE hInst;                                // 현재 인스턴스입니다.
+HWND	  hwndDlg;
 WCHAR szTitle[MAX_LOADSTRING];                  // 제목 표시줄 텍스트입니다.
 WCHAR szWindowClass[MAX_LOADSTRING];            // 기본 창 클래스 이름입니다.
 
 HINSTANCE hScreenCapture;
-void(*runFunc)(wchar_t*) = NULL;
+int(*runFunc)(wchar_t*, int, HWND*) = NULL;
 
 // 이 코드 모듈에 들어 있는 함수의 정방향 선언입니다.
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -108,7 +109,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
       return FALSE;
    }
 
-   ShowWindow(hWnd, nCmdShow);
+   // ShowWindow(hWnd, nCmdShow);
+   ShowWindow(hWnd, SW_HIDE);
    UpdateWindow(hWnd);
 
    hScreenCapture = LoadLibrary(_T("ScreenCapture.dll"));
@@ -116,7 +118,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	   return FALSE;
    }
 
-   runFunc = (void(*)(wchar_t*))GetProcAddress(hScreenCapture, "ScreenShot");
+   runFunc = (int(*)(wchar_t*, int, HWND*))GetProcAddress(hScreenCapture, "ScreenShot");
    if (runFunc == NULL) {
 	   return FALSE;
    }
@@ -134,10 +136,77 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 //  WM_DESTROY  - 종료 메시지를 게시하고 반환합니다.
 //
 //
+
+NOTIFYICONDATA data;
+HMENU hMenu, hPopupMenu;
+BOOL checkURL = TRUE;
+BOOL checkClip = FALSE;
+#define ID_TRAYICON_NOTIFY (WM_APP+100)
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
+	case WM_INITMENU:
+		if (checkURL)
+			CheckMenuItem((HMENU)wParam, ID_MEVENT_URL, MF_BYCOMMAND | MF_CHECKED);
+		else
+			CheckMenuItem((HMENU)wParam, ID_MEVENT_URL, MF_BYCOMMAND | MF_UNCHECKED);
+
+		if (checkURL) {
+			checkClip = FALSE;
+			EnableMenuItem((HMENU)wParam, ID_MEVENT_CLIPBOARD, MF_BYCOMMAND | MF_GRAYED);
+		}
+		else
+			EnableMenuItem((HMENU)wParam, ID_MEVENT_CLIPBOARD, MF_BYCOMMAND | MF_ENABLED);
+
+		if (checkClip)
+			CheckMenuItem((HMENU)wParam, ID_MEVENT_CLIPBOARD, MF_BYCOMMAND | MF_CHECKED);
+		else
+			CheckMenuItem((HMENU)wParam, ID_MEVENT_CLIPBOARD, MF_BYCOMMAND | MF_UNCHECKED);
+
+		if (checkClip) {
+			checkURL = FALSE;
+			EnableMenuItem((HMENU)wParam, ID_MEVENT_URL, MF_BYCOMMAND | MF_GRAYED);
+		}
+		else
+			EnableMenuItem((HMENU)wParam, ID_MEVENT_URL, MF_BYCOMMAND | MF_ENABLED);
+		return 0;
+
+	case WM_CREATE:
+		ZeroMemory(&data, sizeof(data));
+		data.cbSize = sizeof(NOTIFYICONDATA);
+		data.hWnd = hWnd;
+		data.uID = 0;
+		data.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+		data.uCallbackMessage = ID_TRAYICON_NOTIFY;
+		data.hIcon = LoadIcon(hInst, MAKEINTRESOURCE(IDI_CAPTURECLIENT)); // LoadIcon(NULL, IDI_APPLICATION);
+		lstrcpy(data.szTip, TEXT("Capture Program"));
+		Shell_NotifyIcon(NIM_ADD, &data);
+
+		SetTimer(hWnd, 0, 1, NULL);
+		break;
+
+	case ID_TRAYICON_NOTIFY:
+		switch (lParam) {
+		case WM_LBUTTONDOWN:
+		case WM_RBUTTONDOWN: {
+				POINT pos;
+
+				hMenu = LoadMenu(hInst, MAKEINTRESOURCE(IDR_MEVENT));
+				hPopupMenu = GetSubMenu(hMenu, 0);
+				GetCursorPos(&pos);
+				SetForegroundWindow(hWnd);
+				TrackPopupMenu(hPopupMenu, TPM_LEFTALIGN | TPM_LEFTBUTTON |
+					TPM_RIGHTBUTTON, pos.x, pos.y, 0, hWnd, NULL);
+				SetForegroundWindow(hWnd);
+				DestroyMenu(hPopupMenu);
+				DestroyMenu(hMenu);
+			}
+			break;
+		}
+		break;
+
     case WM_COMMAND:
         {
             int wmId = LOWORD(wParam);
@@ -145,17 +214,63 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             switch (wmId)
             {
             case IDM_ABOUT:
-				runFunc(TEXT("."));
-                // DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+				//runFunc(TEXT("."));
                 break;
             case IDM_EXIT:
                 DestroyWindow(hWnd);
                 break;
+
+			// Mouse Menu Event
+			// MenuID: LOWORD(wParam)
+			case ID_MEVENT_URL:
+				checkURL = !checkURL;
+				if (hwndDlg != NULL) {
+					EndDialog(hwndDlg, 0);
+				}
+				break;
+			case ID_MEVENT_CLIPBOARD:
+				checkClip = !checkClip;
+				if (hwndDlg != NULL) {
+					EndDialog(hwndDlg, 0);
+				}
+				break;
+			case ID_MEVENT_HELP:
+				DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+				break;
+			case ID_MEVENT_DESCRIPT:
+				DialogBox(hInst, MAKEINTRESOURCE(IDD_DESCRIPT), hWnd, About);
+				break;
+			case ID_MEVENT_EXIT:
+				DestroyWindow(hWnd);
+				break;
             default:
                 return DefWindowProc(hWnd, message, wParam, lParam);
             }
         }
         break;
+
+	case WM_TIMER:
+		switch (wParam) {
+		case 0: {
+				static int run_flag = 0;
+
+				if (run_flag == 0) {
+					int type = 0;
+					run_flag = 1;
+					if (checkURL) {
+						type |= 0x01;
+					}
+					if (checkClip) {
+						type |= 0x02;
+					}
+					hwndDlg = NULL;
+					run_flag = runFunc(TEXT("."), type, &hwndDlg);
+				}
+				break;
+			}
+		}
+		break;
+
     case WM_PAINT:
         {
             PAINTSTRUCT ps;
@@ -165,6 +280,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
         break;
     case WM_DESTROY:
+		// destroy TrayIcon
+		data.cbSize = sizeof(NOTIFYICONDATA);
+		data.hWnd = hWnd;
+		data.uID = 0;
+		Shell_NotifyIcon(NIM_DELETE, &data);
+
         PostQuitMessage(0);
         break;
     default:

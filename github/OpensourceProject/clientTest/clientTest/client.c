@@ -7,6 +7,7 @@ int main(void)
 	int i=0;
 	while (++i)
 	{
+		int urlLen=0;
 		socket_t servSock;
 
 		FILE* fp;
@@ -14,8 +15,8 @@ int main(void)
 		char fBuffer[BUF_SIZE];
 		int readSize, readTotalSize, fileSize;
 
-		const char IP[] = "127.0.0.1";
-		int port = 2222;
+		const char IP[] = "220.149.14.83";
+		int port = 443;
 
 		printf("i: %d\n", i);
 		servSock = creat_client_socket(IP, port);
@@ -36,6 +37,9 @@ int main(void)
 		fseek(fp, 0, SEEK_SET);
 		readTotalSize = 0;
 
+		fileSize = htonl(fileSize);
+		send(servSock, (char*)&fileSize, sizeof(int), 0);
+		fileSize = ntohl(fileSize);
 		// 받아온 data의 크기가 file의 크기와 같거나 클 때 까지 파일의 내용을 받아옴 
 		while (fileSize > readTotalSize) {
 			memset(fBuffer, 0x00, BUF_SIZE);
@@ -46,9 +50,17 @@ int main(void)
 			printf("send %u/%u bytes\n", readSize, fileSize);
 			readTotalSize = readTotalSize + readSize;
 		}
-
+		// recv(servSock, (char *)&urlLen, sizeof(int) * 1, 0);
 		fclose(fp);
+		printf("전송 끝!\n");
+		memset(fBuffer, 0x00, BUF_SIZE);
+		recv(servSock, (char*)&urlLen, sizeof(int), 0);
+		urlLen = ntohl(urlLen);
+		recv(servSock, fBuffer, urlLen, 0);
+		printf("길이: %d\n", urlLen);
+		printf("경로: %s\n", fBuffer);
 		closesocket(servSock);
+		break;
 	}
 
 	return 0;

@@ -6,6 +6,7 @@
 #pragma once
 
 #include "targetver.h"
+#include "./socket_lib-master\socket_lib.h"
 
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 // Windows Header Files:

@@ -26,6 +26,8 @@ bool		bSelected;
 bool		bDrawRect;
 bool		bDrawText;
 bool		bDrawLine;
+bool		bUrl;
+bool		bClip;
 POINT		ptBegin;
 POINT		ptEnd;
 POINT		ptRectBegin;
@@ -51,6 +53,8 @@ GdiplusStartupInput gdiplusStartupInput;
 ULONG_PTR			gdiplusGdiToken;
 Image*				pImage = NULL;
 HWND				hWndCommandBar;
+
+#define BUF_SIZE ((1024)*(512))
 
 #define WM_FINISHED WM_USER + 1
 #define WM_DRAWRECT WM_USER + 2
@@ -79,4 +83,4 @@ VOID				CommandDrawRect(HWND hDlg);
 VOID				CommandDrawLine(HWND hDlg);
 VOID				CommandDrawText(HWND hDlg);
 
-extern "C" EXPORT_API	void ScreenShot(wchar_t* wszPath);
+extern "C" EXPORT_API	int ScreenShot(wchar_t* wszPath, int type, HWND *hwndDlg);

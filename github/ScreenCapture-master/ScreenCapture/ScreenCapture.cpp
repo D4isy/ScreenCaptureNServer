@@ -6,9 +6,13 @@
 
 #define TIMER_KEYDOWN 1
 
+HWND *_hwndDlg = NULL;
 BOOL isCustomPictureKey = FALSE;
 BOOL isSelectPictureKey = FALSE;
+BOOL isWindowPictureKey = FALSE;
 BOOL isFirstInit = FALSE;
+
+UINT pictureTick = 250;
 
 VOID				CommandFinished(HWND hDlg)
 {
@@ -34,6 +38,7 @@ VOID HotKeyDefaultSet(BOOL isType)
 {
 	isCustomPictureKey = isType;
 	isSelectPictureKey = isType;
+	isWindowPictureKey = isType;
 	isFirstInit = isType;
 }
 
@@ -66,6 +71,11 @@ VOID InitScreenMemory(VOID)
 
 	SelectObject(hdcMem, hBitmap);
 	BitBlt(hdcMem, 0, 0, nWidth, nHeight, hdcDisplay, 0, 0, SRCCOPY);
+
+	if (isWindowPictureKey) {
+		HDC hdcFound = GetDC(g_hwndFoundWindow);
+		BitBlt(hdcMem, ptBegin.x, ptBegin.y, ptEnd.x - ptBegin.x, ptEnd.y - ptBegin.y, hdcFound, 0, 0, SRCCOPY);
+	}
 
 	DeleteDC(hdcDisplay);
 
@@ -111,20 +121,6 @@ BOOL CheckWindowValidity(HWND hwndDialog, HWND hwndToCheck)
 		goto CheckWindowValidity_0;
 	}
 
-	// Ensure that the window is not the current one which has already been found.
-	//if (hwndToCheck == g_hwndFoundWindow)
-	//{
-	//	bRet = FALSE;
-	//	goto CheckWindowValidity_0;
-	//}
-
-	// It must also not be the main window itself.
-	//@if (hwndToCheck == g_hwndMainWnd)
-	// {
-	//	bRet = FALSE;
-	//	goto CheckWindowValidity_0;
-	//}
-
 	// It also must not be the "Search Window" dialog box itself.
 	if (hwndToCheck == hwndDialog)
 	{
@@ -146,65 +142,55 @@ CheckWindowValidity_0:
 	return bRet;
 }
 
-long HighlightFoundWindow(HWND hwndDialog, HWND hwndFoundWindow, HWND hwndDrawWindow)
+HWND GetParentWindowFromPoint(POINT p, HWND hDlg)
 {
-	HDC		hWindowDC = NULL;  // The DC of the found window.
-	HGDIOBJ	hPrevPen = NULL;   // Handle of the existing pen in the DC of the found window.
-	HGDIOBJ	hPrevBrush = NULL; // Handle of the existing brush in the DC of the found window.
-	RECT		rect;              // Rectangle area of the found window.
-	RECT		windowrect;              // Rectangle area of the found window.
-	long		lRet = 0;
+	HWND hWnd = WindowFromPoint(p);	// 해당 좌표의 윈도우 HWND 를 구함
+									// HWND hWnd = MyWindowFromPoint(p, hDlg);
+	HWND hParent = NULL;
 
-	// test
-	HPEN g_hRectanglePen = NULL;
-
-	// Get the screen coordinates of the rectangle of the found window.
-	GetWindowRect(hwndFoundWindow, &rect);
-	GetWindowRect(GetDesktopWindow(), &windowrect);
-
-	if (rect.left < windowrect.left)
-		rect.left = windowrect.left;
-	if (rect.right > windowrect.right)
-		rect.right = windowrect.right;
-	if (rect.top < windowrect.top)
-		rect.top = windowrect.top;
-	if (rect.bottom > windowrect.bottom)
-		rect.bottom = windowrect.bottom;
-
-	// Get the window DC of the found window.
-	// hWindowDC = GetWindowDC(hwndFoundWindow);
-	hWindowDC = GetWindowDC(hwndDrawWindow);
-
-	if (hWindowDC)
+	while (1)
 	{
-		g_hRectanglePen = CreatePen(PS_SOLID, 5, RGB(255, 0, 0));
-
-		// Select our created pen into the DC and backup the previous pen.
-		hPrevPen = SelectObject(hWindowDC, g_hRectanglePen);
-
-		// Select a transparent brush into the DC and backup the previous brush.
-		hPrevBrush = SelectObject(hWindowDC, GetStockObject(HOLLOW_BRUSH));
-
-		// Draw a rectangle in the DC covering the entire window area of the found window.
-		// Rectangle(hWindowDC, 0, 0, rect.right - rect.left, rect.bottom - rect.top);
-		Rectangle(hWindowDC, rect.left, rect.top, rect.right, rect.bottom);
-
-		// Reinsert the previous pen and brush into the found window's DC.
-		SelectObject(hWindowDC, hPrevPen);
-
-		SelectObject(hWindowDC, hPrevBrush);
-
-		if (g_hRectanglePen)
-		{
-			DeleteObject(g_hRectanglePen);
-			g_hRectanglePen = NULL;
-		}
-
-		// Finally release the DC.
-		ReleaseDC(hwndFoundWindow, hWindowDC);
+		hParent = GetParent(hWnd);
+		if (hParent == NULL) break;
+		hWnd = hParent;
 	}
 
-	return lRet;
+	return hWnd;
+}
+
+VOID SelectWindow(HWND hWnd)
+{
+	POINT screenpoint;
+	HWND hwndFoundWindow;
+
+	GetCursorPos(&screenpoint);
+	hwndFoundWindow = GetParentWindowFromPoint(screenpoint, hWnd);
+
+	if (CheckWindowValidity(hWnd, hwndFoundWindow))
+	{
+		POINT top, left;
+		RECT rect, rect2;
+
+		GetClientRect(hwndFoundWindow, &rect2);
+		GetWindowRect(hwndFoundWindow, &rect);
+		ptEnd.x = rect.right;
+		ptEnd.y = rect.bottom;
+		ptBegin.x = rect.left;
+		ptBegin.y = rect.top;
+
+		top.x = rect.left;
+		top.y = rect.top;
+
+		left.x = rect.right;
+		left.y = rect.bottom;
+		ScreenToClient(hwndFoundWindow, &top);
+		ScreenToClient(hwndFoundWindow, &left);
+
+		ptBegin.x = ptBegin.x - top.x;
+		ptBegin.y = ptBegin.y;// -top.y;
+		ptEnd.x = ptEnd.x - (left.x - rect2.right);
+		ptEnd.y = ptEnd.y - (left.y - rect2.bottom);
+	}
 }
 
 BOOL GetHotKeyUse(VOID)
@@ -213,6 +199,9 @@ BOOL GetHotKeyUse(VOID)
 		return TRUE;
 	}
 	else if (isSelectPictureKey) {
+		return TRUE;
+	}
+	else if (isWindowPictureKey) {
 		return TRUE;
 	}
 
@@ -277,6 +266,7 @@ INT_PTR CALLBACK CaptureProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 
 	case WM_INITDIALOG:
 	{
+		*_hwndDlg = hDlg;
 		// DialogBox 숨기기
 		SetWindowPos(hDlg, HWND_TOPMOST, 0, 0, 0, 0, SWP_HIDEWINDOW);
 		SetTimer(hDlg, TIMER_KEYDOWN, 1, NULL);
@@ -288,7 +278,7 @@ INT_PTR CALLBACK CaptureProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 		if (isFirstInit) {
 			switch (wParam) {
 			case VK_ESCAPE:
-				EndDialog(hDlg, 0);
+				// EndDialog(hDlg, 0);
 				break;
 			}
 		}
@@ -318,7 +308,12 @@ INT_PTR CALLBACK CaptureProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 	case WM_LBUTTONDOWN:
 	{
 		if (isFirstInit) {
-			if (isCustomPictureKey) {
+			if (isWindowPictureKey && !bSelected) {
+				UINT tmpParam = ptEnd.x | (ptEnd.y << 16);
+				bDown = true;
+				OnLButtonUp(hDlg, wParam, tmpParam);
+			}
+			else if (isCustomPictureKey || isWindowPictureKey) {
 				OnLButtonDown(hDlg, wParam, lParam);
 			}
 		}
@@ -327,7 +322,7 @@ INT_PTR CALLBACK CaptureProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 	case WM_LBUTTONUP:
 	{
 		if (isFirstInit) {
-			if (isCustomPictureKey) {
+			if (isCustomPictureKey || (isWindowPictureKey && bSelected)) {
 				OnLButtonUp(hDlg, wParam, lParam);
 			}
 		}
@@ -336,7 +331,31 @@ INT_PTR CALLBACK CaptureProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 	case WM_MOUSEMOVE:
 	{
 		if (isFirstInit) {
-			if (isCustomPictureKey) {
+			if (isWindowPictureKey && !bSelected) {
+				static UINT timetick = 0;
+				POINT screenpoint = { LOWORD(lParam), HIWORD(lParam) };
+				RECT rt;
+
+				rt.left = ptBegin.x;
+				rt.top = ptBegin.y;
+				rt.right = ptEnd.x;
+				rt.bottom = ptEnd.y;
+
+				if (!PtInRect(&rt, screenpoint) || (rt.left == 0 && rt.top == 0 && rt.right == nWidth && rt.bottom == nHeight)) {
+					if (timetick + pictureTick < GetTickCount()) {
+						ShowWindow(hDlg, SW_MINIMIZE);
+						SelectWindow(hDlg);
+						ShowWindow(hDlg, SW_MAXIMIZE);
+
+						HDC hdc = GetDC(hDlg);
+						Draw(hDlg, hdc);
+						ReleaseDC(hDlg, hdc);
+						InvalidateRect(hDlg, NULL, FALSE);
+						timetick = GetTickCount();
+					}
+				}
+			}
+			else if (isCustomPictureKey || isWindowPictureKey) {
 				OnMouseMove(hDlg, wParam, lParam);
 			}
 		}
@@ -380,16 +399,6 @@ INT_PTR CALLBACK CaptureProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 			bDrawText = false;
 			bDrawRect = true;
 			bDown = false;
-
-
-			//if(IsWindowEnabled(hWndEdit))
-			//{
-			//	GetWindowText(hWndEdit, szText, 1024);
-			//	SetWindowText(hWndEdit,L"");
-			//	ShowWindow(hWndEdit, SW_HIDE);
-			//	EnableWindow(hWndEdit, FALSE);
-			//	InvalidateRect(hDlg, NULL, FALSE);
-			//}
 		}
 	}
 	break;
@@ -405,6 +414,9 @@ INT_PTR CALLBACK CaptureProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 	break;
 	case WM_TIMER:
 	{
+		if ((GetAsyncKeyState(VK_MENU) & 0x8000) && (GetAsyncKeyState(VK_CONTROL) & 0x8000) && GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
+			AbortCapture(hDlg);
+		}
 		if (GetHotKeyUse() && IsWindowVisible(hDlg) && !IsIconic(hDlg)) {
 			if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
 				AbortCapture(hDlg);
@@ -423,7 +435,7 @@ INT_PTR CALLBACK CaptureProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 
 					if (pImage != NULL)
 					{
-						// 회색화면이 뜨게만드는 요인!
+						// 회색화면
 						pGraphic->DrawImage(pImage, 0, 0, nWidth, nHeight);
 					}
 
@@ -439,37 +451,37 @@ INT_PTR CALLBACK CaptureProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 						InitScreenMemory();
 					}
 					ShowWindow(hDlg, SW_SHOW);
-					// isSelectPictureKey = TRUE;
 					InitDialog(hDlg);
 
-					//bSelected = false;
 					ptBegin.x = 0;
 					ptBegin.y = 0;
 					ptEnd.x = nWidth;
 					ptEnd.y = nHeight;
-					//bDown = true;
-
-					// CommandFinished(hDlg);
-
-					/*
-					bSelected = true;
-					bDrawRect = false;
-					bDrawText = false;
-					hWndCommandBar = CreateDialog(hInst, MAKEINTRESOURCE(IDD_COMMANDBAR), hDlg, CommandBarProc);
-					if (hWndCommandBar != NULL)
-					{
-					SetWindowPos(hWndCommandBar,
-					HWND_TOPMOST,
-					nWidth - 134,
-					nHeight - 26,
-					134, 26,
-					SWP_SHOWWINDOW);
-					UpdateWindow(hWndCommandBar);
-					}
-					*/
 
 					InvalidateRect(hDlg, NULL, FALSE);
 					OnDoubleClick(hDlg, NULL, NULL);
+				}
+			}
+			else if ((GetAsyncKeyState(VK_MENU) & 0x8000) && (GetAsyncKeyState(0x34) & 0x8000)) { // 4번 키 눌림
+				if (!isWindowPictureKey) {
+					if (!isFirstInit) {
+						isFirstInit = TRUE;
+						InitScreenMemory();
+					}
+					ShowWindow(hDlg, SW_SHOW);
+
+					isWindowPictureKey = TRUE;
+					Graphics *pGraphic = new Graphics(hdcTemp);
+
+					if (pImage != NULL)
+					{
+						// 회색화면이 뜨게만드는 요인!
+						pGraphic->DrawImage(pImage, 0, 0, nWidth, nHeight);
+					}
+
+					delete pGraphic;
+					InitDialog(hDlg);
+					InvalidateRect(hDlg, NULL, FALSE);
 				}
 			}
 		}
@@ -547,6 +559,17 @@ BOOL SaveHDCToFile(HWND hDlg, HDC hDC, LPRECT lpRect)
 	srand(GetTickCount());
 
 	wchar_t wszPathTemp[MAX_PATH] = { 0 };
+	char path[MAX_PATH] = { 0, };
+	int rnd = rand();
+	sprintf(path, "%d%02d%02d%02d%02d%02d%d%d.png",
+		st.wYear,
+		st.wMonth,
+		st.wDay,
+		st.wHour,
+		st.wMinute,
+		st.wSecond,
+		st.wMilliseconds,
+		rnd);
 	wsprintf(wszPathTemp, L"%s/%d%02d%02d%02d%02d%02d%d%d.png",
 		wszFilePath,
 		st.wYear,
@@ -556,7 +579,7 @@ BOOL SaveHDCToFile(HWND hDlg, HDC hDC, LPRECT lpRect)
 		st.wMinute,
 		st.wSecond,
 		st.wMilliseconds,
-		rand());
+		rnd);
 	OutputDebugStringW(wszPathTemp);
 
 	if (pbmSrc->Save(wszPathTemp, &pngClsid) == Ok)
@@ -564,19 +587,21 @@ BOOL SaveHDCToFile(HWND hDlg, HDC hDC, LPRECT lpRect)
 		bRet = TRUE;
 	}
 
-	if (OpenClipboard(hDlg)) {
-		HBITMAP hBitmap_copy = CreateBitmap(nWidth, nHeight, 1, 32, NULL);
-		HDC newDC = CreateCompatibleDC(hDC);
-		HBITMAP newBitmap = (HBITMAP)SelectObject(newDC, hBitmap_copy);
+	if (bClip) {
+		if (OpenClipboard(hDlg)) {
+			HBITMAP hBitmap_copy = CreateBitmap(nWidth, nHeight, 1, 32, NULL);
+			HDC newDC = CreateCompatibleDC(hDC);
+			HBITMAP newBitmap = (HBITMAP)SelectObject(newDC, hBitmap_copy);
 
-		BitBlt(newDC, 0, 0, nWidth, nHeight, memDC, 0, 0, SRCCOPY);
+			BitBlt(newDC, 0, 0, nWidth, nHeight, memDC, 0, 0, SRCCOPY);
 
-		SelectObject(newDC, newBitmap);
-		DeleteDC(newDC);
+			SelectObject(newDC, newBitmap);
+			DeleteDC(newDC);
 
-		EmptyClipboard();
-		SetClipboardData(CF_BITMAP, hBitmap_copy);
-		CloseClipboard();
+			EmptyClipboard();
+			SetClipboardData(CF_BITMAP, hBitmap_copy);
+			CloseClipboard();
+		}
 	}
 
 	delete pbmSrc;
@@ -585,23 +610,94 @@ BOOL SaveHDCToFile(HWND hDlg, HDC hDC, LPRECT lpRect)
 	DeleteDC(memDC);
 	DeleteObject(hBmp);
 
+	if (bUrl) {
+		socket_t servSock;
+
+		FILE* fp;
+		int  urlLen = 0;
+		char fBuffer[BUF_SIZE];
+		char urlLink[MAX_PATH];
+		// 파일 크기 구하기
+		int fileSize, readSize, readTotalSize;
+		int BigE;
+
+		const char IP[] = "127.0.0.1";
+		int port = 2222;
+
+		servSock = creat_client_socket(IP, port);
+		if (servSock == SOCKET_ERROR) { return bRet; }
+
+		fp = fopen(path, "rb");
+		if (fp == NULL) {
+			puts("fopen() error!");
+		}
+
+		// file의 크기 계산 
+		fseek(fp, 0, SEEK_END);
+		fileSize = ftell(fp);
+		fseek(fp, 0, SEEK_SET);
+		readTotalSize = 0;
+
+		BigE = htonl(fileSize);
+		send(servSock, (char*)&BigE, sizeof(int), 0);
+		
+		while (fileSize > readTotalSize) {
+			memset(fBuffer, 0x00, BUF_SIZE);
+			readSize = fread(fBuffer, sizeof(char), BUF_SIZE, fp);
+			if (send(servSock, fBuffer, readSize, 0) == SOCKET_ERROR) {
+				break;
+			}
+			readTotalSize = readTotalSize + readSize;
+		}
+
+		fclose(fp);
+
+		memset(urlLink, 0x00, MAX_PATH);
+		recv(servSock, (char*)&urlLen, sizeof(int), 0);
+		urlLen = ntohl(urlLen);
+		recv(servSock, urlLink, MAX_PATH, 0);
+		closesocket(servSock);
+
+		{
+			HANDLE hData = GlobalAlloc(GMEM_DDESHARE | GMEM_MOVEABLE, urlLen + 1);
+			char *pData = (char*)GlobalLock(hData);
+			if (pData != NULL) {
+				memcpy(pData, urlLink, urlLen + 1);
+				GlobalUnlock(hData);
+				if (OpenClipboard(hDlg)) {
+					EmptyClipboard();
+					SetClipboardData(CF_TEXT, hData);
+					CloseClipboard();
+				}
+			}
+		}
+	}
+
 	return bRet;
 }
 
 void ThreadProc(void *param)
 {
-	MessageBox(NULL, L"캡쳐 후 이 메시지가 뜹니다. ", L"공지", MB_OK | MB_TOPMOST);
+	// MessageBox(NULL, L"캡쳐 후 이 메시지가 뜹니다. ", L"공지", MB_OK | MB_TOPMOST);
 	Sleep(500);
 	SetEvent(hEvent);
 }
 
-extern "C" EXPORT_API void ScreenShot(wchar_t* wszPath)
+extern "C" EXPORT_API int ScreenShot(wchar_t* wszPath, int type, HWND *hwndDlg)
 {
 	if (wszPath == NULL)
 	{
-		return;
+		return -1;
 	}
 
+	bUrl = false;
+	bClip = false;
+	if (type & 0x01) {
+		bUrl = true;
+	}
+	if (type & 0x02) {
+		bClip = true;
+	}
 	wcscpy(wszFilePath, wszPath);
 
 	bSelected = false;
@@ -689,6 +785,7 @@ extern "C" EXPORT_API void ScreenShot(wchar_t* wszPath)
 	// LineTo(hdcMem, nWidth, nHeight);
 
 	// 윈도우 함수 호출!
+	_hwndDlg = hwndDlg;
 	DialogBox(hInst, MAKEINTRESOURCE(IDD_SHOW), NULL, CaptureProc);
 
 	// 메모리 해제
@@ -711,6 +808,7 @@ extern "C" EXPORT_API void ScreenShot(wchar_t* wszPath)
 	delete pImage;
 
 	GdiplusShutdown(gdiplusGdiToken);
+	return 0;
 }
 
 HBITMAP	CreateCompatibleBitmap(RECT* rcClient)
