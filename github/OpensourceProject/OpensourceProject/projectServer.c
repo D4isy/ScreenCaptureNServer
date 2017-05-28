@@ -125,7 +125,7 @@ int main(int argc, char **argv)
 
 			if (hClntSock > maxfd)
 				maxfd = hClntSock;
-			// printf("connected client: %d \n", hClntSock);
+			printf("connected client: %d [%s:%d]\n", hClntSock, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 			continue;
 		}
 
@@ -155,7 +155,7 @@ int main(int argc, char **argv)
 					// printf("[fd:%u] recv %u/%u bytes\n", hClntSock, totalSize, fileSize);
 					if (readn == 0) // 상대 소켓 종료
 					{
-						// printf("[fd:%u] file receive end!\n", hClntSock);
+						printf("[fd:%u] file receive end!\n", hClntSock);
 						fclose(fp);
 						__close(hClntSock, &readfds);
 						break;
@@ -163,7 +163,7 @@ int main(int argc, char **argv)
 					else if (totalSize >= fileSize) {
 						int len = htonl(strlen(url));
 						send(hClntSock, (char*)&len, sizeof(int), 0);
-						printf("url 전송...: %s(%d)\n", url, len);
+						//printf("url 전송...: %s(%d)\n", url, len);
 						send(hClntSock, url, MAX_PATH, 0);
 						// send(hClntSock, url, len, 0);
 						printf("url 전송완료!\n");
@@ -220,7 +220,7 @@ void fileNameMaker(char *fName, char *url) {
 	nResult = mkdir(strFolderPath);
 
 	memset(url, 0, sizeof(MAX_PATH));
-	sprintf(url, "http://220.149.14.83/download/%04d%02d%02d_%02d%02d%02d.png",
+	sprintf(url, "http://127.0.0.1/download/%04d%02d%02d_%02d%02d%02d.png",
 		curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
 		curTime->tm_hour, curTime->tm_min, curTime->tm_sec
 	);
@@ -242,7 +242,7 @@ void fileNameMaker(char *fName, char *url) {
 			curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
 			curTime->tm_hour, curTime->tm_min, curTime->tm_sec, idx
 		);
-		sprintf(url, "http://220.149.14.83/download/%04d%02d%02d_%02d%02d%02d(%d).png",
+		sprintf(url, "http://127.0.0.1/download/%04d%02d%02d_%02d%02d%02d(%d).png",
 			curTime->tm_year + 1900, curTime->tm_mon + 1, curTime->tm_mday,
 			curTime->tm_hour, curTime->tm_min, curTime->tm_sec, idx++
 		);
