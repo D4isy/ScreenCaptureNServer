@@ -15,14 +15,14 @@ int main(void)
 		char fBuffer[BUF_SIZE];
 		int readSize, readTotalSize, fileSize;
 
-		const char IP[] = "220.149.14.83";
-		int port = 443;
+		const char IP[] = "127.0.0.1";
+		int port = 2222;
 
 		printf("i: %d\n", i);
 		servSock = creat_client_socket(IP, port);
 		if (servSock == SOCKET_ERROR) { return; }
 
-		//	printf("¿¸º€«“ ∆ƒ¿œ ¿Ã∏ß ¿‘∑¬(»Æ¿Â¿⁄±Ó¡ˆ): ");
+		//	printf("Ï†ÑÏÜ°Ìï† ÌååÏùº Ïù¥Î¶Ñ ÏûÖÎ†•(ÌôïÏû•ÏûêÍπåÏßÄ): ");
 		//	gets_s(fName, sizeof(fName));
 
 		printf("connect %u\n", servSock);
@@ -31,7 +31,7 @@ int main(void)
 			puts("fopen() error!");
 		}
 
-		// file¿« ≈©±‚ ∞ËªÍ 
+		// fileÏùò ÌÅ¨Í∏∞ Í≥ÑÏÇ∞ 
 		fseek(fp, 0, SEEK_END);
 		fileSize = ftell(fp);
 		fseek(fp, 0, SEEK_SET);
@@ -40,7 +40,7 @@ int main(void)
 		fileSize = htonl(fileSize);
 		send(servSock, (char*)&fileSize, sizeof(int), 0);
 		fileSize = ntohl(fileSize);
-		// πﬁæ∆ø¬ data¿« ≈©±‚∞° file¿« ≈©±‚øÕ ∞∞∞≈≥™ ≈¨ ∂ß ±Ó¡ˆ ∆ƒ¿œ¿« ≥ªøÎ¿ª πﬁæ∆ø» 
+		// Î∞õÏïÑÏò® dataÏùò ÌÅ¨Í∏∞Í∞Ä fileÏùò ÌÅ¨Í∏∞ÏôÄ Í∞ôÍ±∞ÎÇò ÌÅ¥ Îïå ÍπåÏßÄ ÌååÏùºÏùò ÎÇ¥Ïö©ÏùÑ Î∞õÏïÑÏò¥ 
 		while (fileSize > readTotalSize) {
 			memset(fBuffer, 0x00, BUF_SIZE);
 			readSize = fread(fBuffer, sizeof(char), BUF_SIZE, fp);
@@ -52,13 +52,13 @@ int main(void)
 		}
 		// recv(servSock, (char *)&urlLen, sizeof(int) * 1, 0);
 		fclose(fp);
-		printf("¿¸º€ ≥°!\n");
+		printf("Ï†ÑÏÜ° ÎÅù!\n");
 		memset(fBuffer, 0x00, BUF_SIZE);
 		recv(servSock, (char*)&urlLen, sizeof(int), 0);
 		urlLen = ntohl(urlLen);
 		recv(servSock, fBuffer, urlLen, 0);
-		printf("±Ê¿Ã: %d\n", urlLen);
-		printf("∞Ê∑Œ: %s\n", fBuffer);
+		printf("Í∏∏Ïù¥: %d\n", urlLen);
+		printf("Í≤ΩÎ°ú: %s\n", fBuffer);
 		closesocket(servSock);
 		break;
 	}
